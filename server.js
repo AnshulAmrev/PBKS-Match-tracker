@@ -283,12 +283,42 @@ setTimeout(checkAllTickets, 3000);
 // API: Test email delivery
 app.post('/api/test-email', async (req, res) => {
   const testMatch = PBKS_MATCHES[0];
-  try {
-    await sendTicketAlert(testMatch);
-    res.json({ success: true, message: `Test email sent to ${process.env.ALERT_EMAIL}` });
-  } catch (err) {
-    res.json({ success: false, message: err.message });
+  const alertEmail = process.env.ALERT_EMAIL;
+
+  if (!alertEmail || !process.env.GMAIL_APP_PASSWORD || !process.env.GMAIL_USER) {
+    return res.json({
+      success: false,
+      message: `Missing env vars — GMAIL_USER: ${process.env.GMAIL_USER ? 'set' : 'MISSING'}, GMAIL_APP_PASSWORD: ${process.env.GMAIL_APP_PASSWORD ? 'set' : 'MISSING'}, ALERT_EMAIL: ${alertEmail || 'MISSING'}`
+    });
   }
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"🏏 IPL Ticket Tracker" <${process.env.GMAIL_USER}>`,
+      to: alertEmail,
+      subject: `🎟️ TEST: PBKS vs ${testMatch.opponent} — ${testMatch.date}`,
+      html: `<div style="font-family:Arial;padding:20px;background:#0F172A;color:#F8FAFC;border-radius:12px;">
+        <h2 style="color:#FCD34D;">✅ Test Email Working!</h2>
+        <p>This confirms your IPL Ticket Tracker email alerts are configured correctly.</p>
+        <p>You'll receive an email like this when tickets for <b>PBKS vs ${testMatch.opponent}</b> go on sale.</p>
+        <p><a href="https://www.district.in/events/punjab-kings-team" style="color:#22C55E;">View on District.in</a></p>
+      </div>`,
+      text: `Test email working! You'll be notified when PBKS tickets go on sale.`,
+    });
+    res.json({ success: true, message: `Test email sent to ${alertEmail} (${info.messageId})` });
+  } catch (err) {
+    console.error('Test email error:', err.message);
+    res.json({ success: false, message: `Email failed: ${err.message}` });
+  }
+});
+
+// API: Check email config status (no secrets exposed)
+app.get('/api/email-status', (req, res) => {
+  res.json({
+    gmail_user: process.env.GMAIL_USER ? process.env.GMAIL_USER : 'NOT SET',
+    gmail_password: process.env.GMAIL_APP_PASSWORD ? '****SET****' : 'NOT SET',
+    alert_email: process.env.ALERT_EMAIL ? process.env.ALERT_EMAIL : 'NOT SET',
+  });
 });
 
 app.listen(PORT, () => {
